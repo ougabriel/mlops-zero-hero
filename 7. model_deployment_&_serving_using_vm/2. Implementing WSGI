@@ -1,0 +1,226 @@
+
+
+***
+
+## Simple Summary
+
+This lecture explains **how to run the intent classifier API using a production‑grade server** instead of the Flask development server.
+
+Previously, the model was run using:
+
+```bash
+python3 app.py
+```
+
+This starts a **Flask development server**, which:
+
+*   Is not designed for concurrent users
+*   Is not suitable for production workloads
+
+### What changes in this lecture?
+
+*   We use **WSGI (Web Server Gateway Interface)** with **Gunicorn**
+*   Gunicorn enables:
+    *   Parallel request handling (multiple workers)
+    *   Production‑ready API serving
+*   The code changes are minimal:
+    *   Add one new file: `wsgi.py`
+    *   Add one dependency: `gunicorn`
+*   The API behavior remains the same, but it now runs on a **robust production server**
+
+⚠️ Even though Gunicorn is production‑grade, the server is still running in the **foreground**. If the process stops or the VM restarts, the API will stop.  
+➡️ This will be fixed in later lectures using **Linux services (systemd)**.
+
+***
+
+## Step‑by‑Step Lab Guide (Running API with WSGI on EC2)
+
+### Step 1: Create and Access EC2 Instance
+
+1.  Launch an **Ubuntu EC2 instance**
+2.  SSH into the instance:
+
+```bash
+ssh -i your-key.pem ubuntu@<public-ip>
+```
+
+✅ You are now inside the virtual machine.
+
+***
+
+### Step 2: Clone the Repository
+
+1.  Create a working directory:
+
+```bash
+mkdir opt
+cd opt
+```
+
+2.  Clone the GitHub repository:
+
+```bash
+git clone <your-github-repo-url>
+```
+
+3.  Move into the project folder:
+
+```bash
+cd intent-classifier-model
+```
+
+***
+
+### Step 3: Create and Activate Virtual Environment
+
+1.  Create a virtual environment:
+
+```bash
+python3 -m venv .venv
+```
+
+2.  Activate it:
+
+```bash
+source .venv/bin/activate
+```
+
+✅ This isolates project dependencies.
+
+***
+
+### Step 4: Add WSGI File
+
+1.  Create a new file called `wsgi.py`:
+
+```bash
+nano wsgi.py
+```
+
+2.  Add the following code:
+
+```python
+from app import app
+
+application = app
+```
+
+✅ Gunicorn looks for this `application` object to serve the API.
+
+***
+
+### Step 5: Add Gunicorn Dependency
+
+1.  Open `requirements.txt`
+2.  Add:
+
+```text
+gunicorn
+```
+
+✅ Gunicorn is the WSGI server for Python.
+
+***
+
+### Step 6: Install Dependencies
+
+Run:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+✅ All required packages (including Gunicorn) are installed.
+
+***
+
+### Step 7: Train the Model
+
+1.  Move to the model directory and run training:
+
+```bash
+python3 model/train.py
+```
+
+2.  Confirm:
+
+*   `artifacts/intent_model.pkl` is created
+
+✅ The API requires this trained model to work.
+
+***
+
+### Step 8: Run the API Using Gunicorn (WSGI)
+
+Instead of:
+
+```bash
+python3 app.py
+```
+
+Run:
+
+```bash
+gunicorn --workers 3 --bind 0.0.0.0:6000 wsgi:application
+```
+
+**Explanation:**
+
+*   `--workers 3` → handles concurrent requests
+*   `6000` → API port
+*   `wsgi:application` → references `application` in `wsgi.py`
+
+✅ The API is now running on a **production‑grade WSGI server**.
+
+***
+
+### Step 9: Test the API
+
+Open another terminal tab and SSH again into the VM.
+
+Run:
+
+```bash
+curl -X POST http://127.0.0.1:6000/predict \
+-H "Content-Type: application/json" \
+-d '{"text":"Hi WhatsApp"}'
+```
+
+✅ Expected response:
+
+```json
+{"intent":"greeting"}
+```
+
+This response is now served by **Gunicorn + WSGI**, not Flask’s dev server.
+
+***
+
+### Step 10: Understand the Limitation
+
+*   Press `CTRL+C` in the Gunicorn terminal
+*   Try the curl request again → ❌ API fails
+
+**Reason:**  
+Gunicorn is running as a **foreground process**
+
+✅ Next step (future lecture):
+
+*   Run Gunicorn as a **Linux service (systemd)**
+*   Ensure API auto‑starts after VM reboot
+
+***
+
+## Key Takeaways
+
+*   WSGI + Gunicorn converts Flask apps into **production‑ready APIs**
+*   Minimal changes:
+    *   Add `wsgi.py`
+    *   Add `gunicorn`
+    *   Change run command
+*   Supports **concurrency and high traffic**
+*   Still needs **Linux service setup** for reliability
+
+***
+
+
